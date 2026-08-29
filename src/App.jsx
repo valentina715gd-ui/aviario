@@ -121,7 +121,7 @@ function App() {
       <main className="mx-auto max-w-6xl lg:ml-64">
         <header className="flex items-center justify-between px-5 py-5 sm:px-8 lg:px-12 lg:py-8">
           <div className="lg:hidden"><Brand compact /></div>
-          <div className="hidden lg:block"><p className="text-sm font-medium text-moss">Sábado, 29 de agosto de 2026</p><h1 className="mt-1 font-display text-3xl">Buenos días, Val</h1></div>
+          <div className="hidden lg:block"><p className="text-sm font-medium text-moss">{formatToday()}</p><h1 className="mt-1 font-display text-3xl">{getGreeting()}, Val</h1></div>
           <div className="relative flex items-center gap-3">{installPrompt && <button aria-label="Instalar aplicación" title="Instalar aplicación" className="icon-button" onClick={installApp}><Download size={19} /></button>}<button aria-label="Buscar" className="icon-button" onClick={() => { setSearchOpen((current) => !current); setMobileMenuOpen(false) }}><Search size={19} /></button><button aria-label="Menú" className="icon-button lg:hidden" onClick={() => { setMobileMenuOpen((current) => !current); setSearchOpen(false) }}><Menu size={19} /></button><button aria-label="Perfil" className="avatar" title={session?.user.email || 'Modo demo'} onClick={() => setProfileOpen((current) => !current)}>{session?.user.email?.[0]?.toUpperCase() || 'V'}</button>{profileOpen && <ProfileMenu session={session} onSettings={() => { setShowSettings(true); setProfileOpen(false) }} onClose={() => supabase?.auth.signOut()} />}</div>
         </header>
         {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} onNavigate={(page) => { setActivePage(page); setSearchOpen(false) }} />}
@@ -173,6 +173,7 @@ function AuthScreen() {
   const [mode, setMode] = useState('login')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [confirmationSent, setConfirmationSent] = useState(false)
 
   const submit = async (event) => {
     event.preventDefault()
@@ -183,14 +184,16 @@ function AuthScreen() {
     const password = form.get('password')
     const result = mode === 'login'
       ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
     setLoading(false)
     if (result.error) setMessage(result.error.message.toLowerCase().includes('invalid api key') ? 'La clave de Supabase no es válida. Usa la clave anon public del mismo proyecto.' : result.error.message)
-    else if (mode === 'signup') setMessage('Cuenta creada. Revisa tu correo para confirmar el acceso.')
+    else if (mode === 'signup' && !result.data.session) setConfirmationSent(true)
   }
 
-  return <main className="flex min-h-screen items-center justify-center bg-cream page-grain px-5 py-8"><section className="w-full max-w-md rounded-3xl border border-[#dce5d8] bg-[#f8faf6] p-6 shadow-[0_12px_40px_rgba(53,78,58,.08)] sm:p-8"><Brand /><p className="eyebrow mt-12">TU AVIARIO PRIVADO</p><h1 className="mt-2 font-display text-4xl">{mode === 'login' ? 'Bienvenido de nuevo' : 'Crear una cuenta'}</h1><p className="mt-3 text-sm leading-6 text-moss">Cada usuario tendrá sus propios registros de aves, crías, gastos y tareas.</p><form onSubmit={submit} className="mt-7"><label>Correo electrónico<input required type="email" name="email" autoComplete="email" placeholder="tu@correo.com" /></label><label className="mt-4">Contraseña<input required minLength="6" type="password" name="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="Mínimo 6 caracteres" /></label>{message && <p className="mt-4 rounded-xl bg-[#fae9dd] p-3 text-xs font-semibold text-coral">{message}</p>}<button disabled={loading} className="primary-button mt-6 w-full justify-center disabled:opacity-60">{loading ? 'Procesando...' : mode === 'login' ? 'Iniciar sesión' : 'Registrarme'}</button></form><button className="mt-5 w-full text-center text-sm font-semibold text-moss" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMessage('') }}>{mode === 'login' ? 'Crear una cuenta nueva' : 'Ya tengo una cuenta'}</button></section></main>
+  return <main className="flex min-h-screen items-center justify-center bg-cream page-grain px-5 py-8"><section className="w-full max-w-md rounded-3xl border border-[#dce5d8] bg-[#f8faf6] p-6 shadow-[0_12px_40px_rgba(53,78,58,.08)] sm:p-8"><Brand />{confirmationSent ? <ConfirmationMessage onBack={() => setConfirmationSent(false)} /> : <><p className="eyebrow mt-12">TU AVIARIO PRIVADO</p><h1 className="mt-2 font-display text-4xl">{mode === 'login' ? 'Bienvenido de nuevo' : 'Crear una cuenta'}</h1><p className="mt-3 text-sm leading-6 text-moss">Cada usuario tendrá sus propios registros de aves, crías, gastos y tareas.</p><form onSubmit={submit} className="mt-7"><label>Correo electrónico<input required type="email" name="email" autoComplete="email" placeholder="tu@correo.com" /></label><label className="mt-4">Contraseña<input required minLength="6" type="password" name="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="Mínimo 6 caracteres" /></label>{message && <p className="mt-4 rounded-xl bg-[#fae9dd] p-3 text-xs font-semibold text-coral">{message}</p>}<button disabled={loading} className="primary-button mt-6 w-full justify-center disabled:opacity-60">{loading ? 'Procesando...' : mode === 'login' ? 'Iniciar sesión' : 'Registrarme'}</button></form><button className="mt-5 w-full text-center text-sm font-semibold text-moss" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMessage('') }}>{mode === 'login' ? 'Crear una cuenta nueva' : 'Ya tengo una cuenta'}</button></>}</section></main>
 }
+
+function ConfirmationMessage({ onBack }) { return <div className="mt-12"><p className="eyebrow">CASI LISTO</p><h1 className="mt-2 font-display text-4xl">Confirma tu correo</h1><p className="mt-4 text-sm leading-6 text-moss">Te enviamos un correo de Supabase. Ábrelo y pulsa el botón de confirmación. Ese enlace te devolverá automáticamente a esta aplicación para activar tu cuenta.</p><div className="mt-6 rounded-2xl bg-sage/60 p-4 text-sm leading-6"><p className="font-bold">Si no lo ves:</p><p className="mt-1">Revisa Spam, Promociones o No deseado. Busca un correo de Supabase.</p></div><button className="primary-button mt-6 w-full justify-center" onClick={onBack}>Volver a iniciar sesión</button></div> }
 
 function SettingsForm({ profile, onClose, onSave }) {
   const [preview, setPreview] = useState(profile.photo)
@@ -221,7 +224,7 @@ function PageContent({ activePage, birds, onNavigate, onAdd, onToast }) {
 
 function Dashboard({ onNavigate }) {
   return <section className="animate-rise">
-    <div className="mb-8 lg:hidden"><p className="text-sm font-medium text-moss">Sábado, 29 de agosto de 2026</p><h1 className="mt-1 font-display text-3xl">Buenos días, Val</h1></div>
+    <div className="mb-8 lg:hidden"><p className="text-sm font-medium text-moss">{formatToday()}</p><h1 className="mt-1 font-display text-3xl">{getGreeting()}, Val</h1></div>
     <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="eyebrow">RESUMEN DEL AVIARIO</p><h2 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">Todo en calma.</h2><p className="mt-3 max-w-md text-sm leading-6 text-moss">Aquí tienes lo importante para cuidar mejor cada día.</p></div><button className="primary-button self-start sm:self-auto" onClick={() => onNavigate('aves')}><Plus size={18} /> Registrar ave</button></div>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Metric icon={Bird} label="Aves registradas" value="24" detail="+3 este mes" tone="green" />
@@ -265,6 +268,8 @@ function Tip({ title, text }) { return <div className="flex gap-3 rounded-xl bg-
 function PairIdea({ title, text, warning }) { return <div className={`rounded-xl border p-4 ${warning ? 'border-coral bg-[#fae9dd]' : 'border-[#e4ebe1]'}`}><div className="flex items-center gap-2"><Users size={17} className="text-coral" /><p className="font-semibold">{title}</p></div><p className="mt-2 text-xs leading-5 text-moss">{text}</p>{warning && <p className="mt-3 text-xs font-bold text-coral">Revisar: ambos podrían portar el mismo gen.</p>}</div> }
 function addDays(date, days) { const result = new Date(`${date}T12:00:00`); result.setDate(result.getDate() + days); return result.toISOString().slice(0, 10) }
 function formatDate(date) { return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${date}T12:00:00`)) }
+function getGreeting() { const hour = new Date().getHours(); if (hour < 12) return 'Buenos días'; if (hour < 19) return 'Buenas tardes'; return 'Buenas noches' }
+function formatToday() { return new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()) }
 
 function SimplePage({ title, eyebrow, icon: Icon, accent, text, action, onAction }) { return <section className="animate-rise"><p className="eyebrow">{eyebrow}</p><div className="mt-2 flex items-center gap-4"><div className={`big-icon big-icon-${accent}`}><Icon size={30} /></div><h2 className="font-display text-4xl">{title}</h2></div><div className="panel mt-8 flex min-h-64 flex-col items-center justify-center p-8 text-center"><div className="icon-tile"><Icon size={23} /></div><p className="mt-5 max-w-sm text-sm leading-6 text-moss">{text}</p><button className="primary-button mt-5" onClick={onAction}><Plus size={18} /> {action}</button></div></section> }
 function TasksPage({ onToast }) { return <section className="animate-rise"><p className="eyebrow">ORGANIZACIÓN</p><div className="flex items-end justify-between"><div><h2 className="mt-2 font-display text-4xl">Tareas</h2><p className="mt-2 text-sm text-moss">3 pendientes para cuidar el ritmo.</p></div><button className="primary-button" onClick={() => onToast('Nueva tarea próximamente')}><Plus size={18} /><span className="hidden sm:inline">Nueva tarea</span></button></div><div className="mt-7 space-y-3"><TaskRow title="Revisar pareja Lima + Coco" meta="Hoy · Alta prioridad" color="coral" /><TaskRow title="Aplicar vitaminas a Nube" meta="Mañana · Tratamiento" color="sage" /><TaskRow title="Comprar mijo y mixtura" meta="02 sep · Stock" color="yellow" /></div></section> }
