@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Bird, CalendarCheck, ChevronRight, CircleDollarSign, Download, Egg, HeartPulse, Home, Leaf,
   Menu, MessageCircle, Plus, Search, Settings, Share2, ShoppingBasket, Sparkles, Users, X,
@@ -18,6 +18,7 @@ const navItems = [
 function App() {
   const publicAviaryId = new URLSearchParams(window.location.search).get('aviario')
   const [session, setSession] = useState(null)
+  const sessionRef = useRef(null)
   const [authLoading, setAuthLoading] = useState(Boolean(supabase))
   const [activePage, setActivePage] = useState('inicio')
   const [birds, setBirds] = useState(initialBirds)
@@ -35,10 +36,13 @@ function App() {
     let mounted = true
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return
+      sessionRef.current = data.session
       setSession(data.session)
       setAuthLoading(false)
       const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
         if (!mounted) return
+        if (!nextSession && sessionRef.current) return
+        sessionRef.current = nextSession
         setSession(nextSession)
       })
       cleanupListener = () => listener.subscription.unsubscribe()
