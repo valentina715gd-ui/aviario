@@ -23,7 +23,7 @@ Luego abre la URL que indique Vite, normalmente `http://localhost:5173`.
 3. En el SQL Editor de Supabase ejecuta `supabase/schema.sql`.
 4. La app puede usar `src/lib/supabase.js` para autenticacion y consultas.
 
-Si al guardar una ave aparece `Could not find the table public.aves`, ejecuta `supabase/repair-aves.sql` en el SQL Editor. Si aparece `Bucket not found`, ejecuta `supabase/repair-storage.sql`. Luego recarga la aplicación.
+Si al guardar una ave o personalizar el aviario aparece un error de permisos, ejecuta `supabase/repair-permisos.sql` en el SQL Editor. Si aparece `Could not find the table public.aves`, ejecuta `supabase/repair-aves.sql`. Si aparece `Bucket not found`, ejecuta `supabase/repair-storage.sql`. Luego recarga la aplicación.
 
 La pantalla de acceso permite `Iniciar sesion` y `Crear una cuenta`. Supabase Auth identifica al usuario y las politicas RLS hacen que cada cuenta consulte unicamente sus propios registros. Para un proyecto ya creado con el SQL anterior, ejecuta tambien:
 
