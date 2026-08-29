@@ -185,7 +185,7 @@ function AuthScreen() {
       ? await supabase.auth.signInWithPassword({ email, password })
       : await supabase.auth.signUp({ email, password })
     setLoading(false)
-    if (result.error) setMessage(result.error.message)
+    if (result.error) setMessage(result.error.message.toLowerCase().includes('invalid api key') ? 'La clave de Supabase no es válida. Usa la clave anon public del mismo proyecto.' : result.error.message)
     else if (mode === 'signup') setMessage('Cuenta creada. Revisa tu correo para confirmar el acceso.')
   }
 
