@@ -110,7 +110,7 @@ function App() {
       const userId = session.user.id
       if (!userId) { showToast('No se encontró tu usuario. Cierra sesión y vuelve a entrar.'); return }
       const { data, error } = await supabase.from('aves').insert({ user_id: userId, nombre: newBird.name, anillo_id: newBird.ring, especie: newBird.species, mutacion: newBird.mutation, sexo: newBird.sex, portador_recesivo: newBird.carrier, gen_recesivo: newBird.recessiveGene || null, en_venta: newBird.enVenta }).select().single()
-      if (error) { showToast(error.code === '42501' || error.message.includes('row-level security') ? 'No se pudo guardar el ave. Pide al administrador revisar los permisos.' : error.message.includes('schema cache') ? 'No se pudo guardar el ave. Pide al administrador actualizar la base de datos.' : error.message); return }
+      if (error) { showToast(error.code === '42501' || error.message.includes('row-level security') ? `No se pudo guardar: permisos de aves rechazados (${error.code || 'RLS'}). Ejecuta repair-aves-final.sql.` : error.message.includes('schema cache') ? 'No se pudo guardar el ave. Pide al administrador actualizar la base de datos.' : error.message); return }
       let photoUrl = null
       if (newBird.photoFile) {
         const path = `${userId}/ave-${data.id}-${newBird.photoFile.name.replace(/[^a-zA-Z0-9.-]/g, '-')}`
