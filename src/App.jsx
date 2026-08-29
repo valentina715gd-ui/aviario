@@ -33,17 +33,18 @@ function App() {
   useEffect(() => {
     if (!supabase) return
     let mounted = true
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!mounted) return
-      setSession(nextSession)
-      setAuthLoading(false)
-    })
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return
       setSession(data.session)
       setAuthLoading(false)
-    })
-    return () => { mounted = false; listener.subscription.unsubscribe() }
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+        if (!mounted) return
+        setSession(nextSession)
+      })
+      cleanupListener = () => listener.subscription.unsubscribe()
+    }).catch(() => { if (mounted) setAuthLoading(false) })
+    let cleanupListener = () => {}
+    return () => { mounted = false; cleanupListener() }
   }, [])
 
   useEffect(() => {
