@@ -81,7 +81,7 @@ function App() {
   }
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-cream text-sm text-moss">Cargando tu aviario...</div>
-  if (supabase && !session) return <AuthScreen />
+  if (supabase && !session) return <AuthScreen onAuthenticated={setSession} />
 
   const navigate = (page) => setActivePage(page)
   const showToast = (message) => {
@@ -172,7 +172,7 @@ function PublicAviaryPage({ aviaryId }) {
 
 function PublicBirdCard({ bird, whatsapp }) { const message = encodeURIComponent(`Hola, me interesa el ave ${bird.name} (${bird.species}, anillo ${bird.ring}). ¿Sigue disponible?`) ; const phone = whatsapp?.replace(/\D/g, '') || '5490000000000'; return <article className="panel overflow-hidden"><div className="flex h-28 items-center justify-center" style={{ backgroundColor: bird.color }}><Bird size={52} className="text-ink/30" /></div><div className="p-4"><h2 className="font-display text-2xl">{bird.name}</h2><p className="mt-1 text-xs text-moss">{bird.species} · {bird.mutation}</p><a className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#25d366] px-3 py-3 text-sm font-bold text-white" href={`https://wa.me/${phone}?text=${message}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> Consultar por WhatsApp</a></div></article> }
 
-function AuthScreen() {
+function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState('login')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -190,6 +190,7 @@ function AuthScreen() {
       : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
     setLoading(false)
     if (result.error) setMessage(result.error.message.toLowerCase().includes('invalid api key') ? 'La clave de Supabase no es válida. Usa la clave anon public del mismo proyecto.' : result.error.message)
+    else if (result.data.session) onAuthenticated(result.data.session)
     else if (mode === 'signup' && !result.data.session) setConfirmationSent(true)
   }
 
