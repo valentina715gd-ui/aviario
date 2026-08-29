@@ -84,6 +84,12 @@ function App() {
     setInstallPrompt(null)
   }
 
+  const signOut = async () => {
+    sessionRef.current = null
+    setSession(null)
+    await supabase.auth.signOut()
+  }
+
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-cream text-sm text-moss">Cargando tu aviario...</div>
   if (supabase && !session) return <AuthScreen onAuthenticated={setSession} />
 
@@ -122,14 +128,14 @@ function App() {
           <p className="mt-1 text-xs leading-5 text-moss">Registra cada detalle sin soltar el ritmo del día.</p>
         </div>
         <button className="mt-5 flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-moss hover:bg-sage/50" onClick={() => setShowSettings(true)}><Settings size={17} /> Ajustes</button>
-        {session && <button className="mt-2 px-3 py-2 text-left text-xs font-semibold text-coral" onClick={() => supabase.auth.signOut()}>Cerrar sesión</button>}
+        {session && <button className="mt-2 px-3 py-2 text-left text-xs font-semibold text-coral" onClick={signOut}>Cerrar sesión</button>}
       </aside>
 
       <main className="mx-auto max-w-6xl lg:ml-64">
         <header className="flex items-center justify-between px-5 py-5 sm:px-8 lg:px-12 lg:py-8">
           <div className="lg:hidden"><Brand compact /></div>
           <div className="hidden lg:block"><p className="text-sm font-medium text-moss">{formatToday()}</p><h1 className="mt-1 font-display text-3xl">{getGreeting()}, Val</h1></div>
-          <div className="relative flex items-center gap-3">{installPrompt && <button aria-label="Instalar aplicación" title="Instalar aplicación" className="icon-button" onClick={installApp}><Download size={19} /></button>}<button aria-label="Buscar" className="icon-button" onClick={() => { setSearchOpen((current) => !current); setMobileMenuOpen(false) }}><Search size={19} /></button><button aria-label="Menú" className="icon-button lg:hidden" onClick={() => { setMobileMenuOpen((current) => !current); setSearchOpen(false) }}><Menu size={19} /></button><button aria-label="Perfil" className="avatar" title={session?.user.email || 'Modo demo'} onClick={() => setProfileOpen((current) => !current)}>{session?.user.email?.[0]?.toUpperCase() || 'V'}</button>{profileOpen && <ProfileMenu session={session} onSettings={() => { setShowSettings(true); setProfileOpen(false) }} onClose={() => supabase?.auth.signOut()} />}</div>
+          <div className="relative flex items-center gap-3">{installPrompt && <button aria-label="Instalar aplicación" title="Instalar aplicación" className="icon-button" onClick={installApp}><Download size={19} /></button>}<button aria-label="Buscar" className="icon-button" onClick={() => { setSearchOpen((current) => !current); setMobileMenuOpen(false) }}><Search size={19} /></button><button aria-label="Menú" className="icon-button lg:hidden" onClick={() => { setMobileMenuOpen((current) => !current); setSearchOpen(false) }}><Menu size={19} /></button><button aria-label="Perfil" className="avatar" title={session?.user.email || 'Modo demo'} onClick={() => setProfileOpen((current) => !current)}>{session?.user.email?.[0]?.toUpperCase() || 'V'}</button>{profileOpen && <ProfileMenu session={session} onSettings={() => { setShowSettings(true); setProfileOpen(false) }} onClose={signOut} />}</div>
         </header>
         {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} onNavigate={(page) => { setActivePage(page); setSearchOpen(false) }} />}
         {mobileMenuOpen && <MobileMenu activePage={activePage} onNavigate={(page) => { setActivePage(page); setMobileMenuOpen(false) }} />}
