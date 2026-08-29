@@ -4,6 +4,10 @@ alter table public.aves enable row level security;
 
 drop policy if exists "Usuarios gestionan sus aves" on public.aves;
 drop policy if exists "Usuarios gestionan sus propios datos" on public.aves;
+drop policy if exists "Aves propias: lectura" on public.aves;
+drop policy if exists "Aves propias: insertar" on public.aves;
+drop policy if exists "Aves propias: actualizar" on public.aves;
+drop policy if exists "Aves propias: borrar" on public.aves;
 
 create policy "Aves propias: lectura" on public.aves
 for select to authenticated

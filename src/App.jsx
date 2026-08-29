@@ -107,22 +107,24 @@ function App() {
       mutation: form.get('mutation') || 'Sin especificar', sex: form.get('sex'), carrier: form.get('carrier'), recessiveGene: form.get('recessiveGene'), enVenta: form.get('enVenta') === 'on', photoFile: form.get('photoFile'), color: '#d9c4a8',
     }
     if (supabase && session?.user) {
-      let { data: authData } = await supabase.auth.getSession()
-      if (!authData.session) {
+      let { data: authData, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !authData.session) {
         const refreshed = await supabase.auth.refreshSession()
         authData = refreshed.data
+        sessionError = refreshed.error
       }
-      if (!authData.session?.user) { showToast('La sesión caducó. Vuelve a iniciar sesión.'); return }
+      if (sessionError || !authData.session?.user) { showToast(`No se pudo validar la sesión: ${sessionError?.message || 'vuelve a iniciar sesión'}`); return }
+      const userId = authData.session.user.id
+      const { data, error } = await supabase.from('aves').insert({ user_id: userId, nombre: newBird.name, anillo_id: newBird.ring, especie: newBird.species, mutacion: newBird.mutation, sexo: newBird.sex, portador_recesivo: newBird.carrier, gen_recesivo: newBird.recessiveGene || null, en_venta: newBird.enVenta }).select().single()
+      if (error) { showToast(error.code === '42501' || error.message.includes('row-level security') ? 'Supabase bloqueó el registro. Ejecuta repair-rls-aves.sql en SQL Editor.' : error.message.includes('schema cache') ? 'Supabase aún no actualizó la tabla aves. Ejecuta repair-aves.sql y vuelve a intentar.' : error.message); return }
       let photoUrl = null
       if (newBird.photoFile) {
-        const path = `${authData.session.user.id}/ave-${Date.now()}-${newBird.photoFile.name.replace(/[^a-zA-Z0-9.-]/g, '-')}`
+        const path = `${userId}/ave-${data.id}-${newBird.photoFile.name.replace(/[^a-zA-Z0-9.-]/g, '-')}`
         const { error: uploadError } = await supabase.storage.from('fotos-aves').upload(path, newBird.photoFile, { upsert: true, contentType: newBird.photoFile.type })
-        if (uploadError) { showToast(uploadError.message.includes('Bucket not found') ? 'Falta crear el almacenamiento de fotos en Supabase. Ejecuta repair-storage.sql.' : `No se pudo subir la foto: ${uploadError.message}`); return }
-        photoUrl = supabase.storage.from('fotos-aves').getPublicUrl(path).data.publicUrl
+        if (uploadError) showToast(uploadError.message.includes('Bucket not found') ? 'Ave guardada. Falta crear fotos-aves para subir la imagen.' : `Ave guardada, pero no se pudo subir la foto: ${uploadError.message}`)
+        else { photoUrl = supabase.storage.from('fotos-aves').getPublicUrl(path).data.publicUrl; await supabase.from('aves').update({ foto_url: photoUrl }).eq('id', data.id).eq('user_id', userId) }
       }
-      const { data, error } = await supabase.from('aves').insert({ user_id: authData.session.user.id, nombre: newBird.name, anillo_id: newBird.ring, especie: newBird.species, mutacion: newBird.mutation, sexo: newBird.sex, portador_recesivo: newBird.carrier, gen_recesivo: newBird.recessiveGene || null, en_venta: newBird.enVenta, foto_url: photoUrl }).select().single()
-      if (error) { showToast(error.message.includes('row-level security') ? 'Supabase no reconoce tu sesión. Revisa que la cuenta esté confirmada y vuelve a entrar.' : error.message); return }
-      setBirds((current) => [{ ...data, ...newBird, photo: photoUrl }, ...current])
+      setBirds((current) => [{ ...data, ...newBird, foto_url: photoUrl }, ...current])
     } else setBirds((current) => [newBird, ...current])
     setShowBirdForm(false)
     showToast('Ave registrada correctamente')
