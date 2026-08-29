@@ -5,11 +5,7 @@ import {
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 
-const initialBirds = [
-  { id: 1, name: 'Lima', ring: 'AR-024', species: 'Diamante mandarín', mutation: 'Pío clásico', sex: 'Hembra', carrier: 'Sí', recessiveGene: 'Bruno', color: '#e7b891' },
-  { id: 2, name: 'Coco', ring: 'AR-025', species: 'Diamante mandarín', mutation: 'Pío clásico', sex: 'Macho', carrier: 'Desconocido', recessiveGene: '', color: '#c7d7c0' },
-  { id: 3, name: 'Nube', ring: 'AR-031', species: 'Agapornis roseicollis', mutation: 'Verde ancestral', sex: 'Hembra', carrier: 'No', recessiveGene: '', color: '#b8cfd0' },
-]
+const initialBirds = []
 
 const navItems = [
   { id: 'inicio', label: 'Inicio', icon: Home },
@@ -29,7 +25,7 @@ function App() {
   const [toast, setToast] = useState('')
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
-  const [profile, setProfile] = useState({ name: 'Mi aviario', photo: '', whatsapp: '', publish: true })
+  const [profile, setProfile] = useState({ name: 'Mi aviario', photo: '', whatsapp: '', publish: false })
   const [searchOpen, setSearchOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -156,7 +152,7 @@ function ProfileMenu({ session, onSettings, onClose }) { return <div className="
 function PublicAviaryPage({ aviaryId }) {
   const [shared, setShared] = useState(false)
   const [aviary, setAviary] = useState(null)
-  const [availableBirds, setAvailableBirds] = useState(initialBirds.filter((bird) => bird.name !== 'Nube'))
+  const [availableBirds, setAvailableBirds] = useState([])
   useEffect(() => {
     if (!supabase) return
     supabase.from('aviarios').select('*').eq('id', aviaryId).eq('publicar_ventas', true).single().then(async ({ data }) => {
@@ -225,24 +221,24 @@ function PageContent({ activePage, birds, onNavigate, onAdd, onToast }) {
   if (activePage === 'reproduccion') return <ReproductionPage birds={birds} onToast={onToast} />
   if (activePage === 'finanzas') return <FinancePage onToast={onToast} />
   if (activePage === 'tareas') return <TasksPage onToast={onToast} />
-  return <Dashboard onNavigate={onNavigate} />
+  return <Dashboard birds={birds} onNavigate={onNavigate} />
 }
 
-function Dashboard({ onNavigate }) {
+function Dashboard({ birds, onNavigate }) {
   return <section className="animate-rise">
     <div className="mb-8 lg:hidden"><p className="text-sm font-medium text-moss">{formatToday()}</p><h1 className="mt-1 font-display text-3xl">{getGreeting()}, Val</h1></div>
     <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="eyebrow">RESUMEN DEL AVIARIO</p><h2 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">Todo en calma.</h2><p className="mt-3 max-w-md text-sm leading-6 text-moss">Aquí tienes lo importante para cuidar mejor cada día.</p></div><button className="primary-button self-start sm:self-auto" onClick={() => onNavigate('aves')}><Plus size={18} /> Registrar ave</button></div>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Metric icon={Bird} label="Aves registradas" value="24" detail="+3 este mes" tone="green" />
-      <Metric icon={Users} label="Parejas activas" value="8" detail="2 con puesta" tone="peach" />
-      <Metric icon={Egg} label="Huevos en curso" value="11" detail="Próximo: 02 sep" tone="blue" />
-      <Metric icon={Sparkles} label="Crías del año" value="17" detail="+4 en agosto" tone="yellow" />
+      <Metric icon={Bird} label="Aves registradas" value={birds.length} detail="En tu aviario" tone="green" />
+      <Metric icon={Users} label="Parejas activas" value="0" detail="Sin registros" tone="peach" />
+      <Metric icon={Egg} label="Huevos en curso" value="0" detail="Sin registros" tone="blue" />
+      <Metric icon={Sparkles} label="Crías del año" value="0" detail="Sin registros" tone="yellow" />
     </div>
     <div className="mt-8 grid gap-5 lg:grid-cols-[1.3fr_.7fr]">
-      <section className="panel p-5 sm:p-6"><div className="flex items-center justify-between"><div><p className="eyebrow">PRÓXIMAS TAREAS</p><h3 className="mt-1 font-display text-2xl">Para hoy</h3></div><button onClick={() => onNavigate('tareas')} className="text-sm font-semibold text-coral">Ver todas</button></div><div className="mt-5 space-y-2"><TaskRow title="Revisar pareja Lima + Coco" meta="Hoy · Reproducción" color="coral" /><TaskRow title="Aplicar vitaminas" meta="Mañana · Nube" color="sage" /><TaskRow title="Comprar mijo y mixtura" meta="En 3 días · Stock bajo" color="yellow" /></div></section>
-      <section className="panel overflow-hidden"><div className="bg-moss p-5 text-white sm:p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-bold tracking-[.18em] text-sage">STOCK DE ALIMENTO</p><h3 className="mt-2 font-display text-3xl">Todo bien</h3></div><Leaf size={30} strokeWidth={1.5} /></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-white/20"><div className="h-full w-[72%] rounded-full bg-[#f0c66c]" /></div><p className="mt-2 text-xs text-sage">72% de tu stock ideal</p></div><div className="p-5"><div className="flex justify-between border-b border-[#e4ebe1] pb-3 text-sm"><span className="text-moss">Mijo</span><strong>4.2 kg</strong></div><div className="flex justify-between pt-3 text-sm"><span className="text-moss">Mixtura</span><strong>2.8 kg</strong></div></div></section>
+      <section className="panel p-5 sm:p-6"><div className="flex items-center justify-between"><div><p className="eyebrow">PRÓXIMAS TAREAS</p><h3 className="mt-1 font-display text-2xl">Para hoy</h3></div><button onClick={() => onNavigate('tareas')} className="text-sm font-semibold text-coral">Ver todas</button></div><div className="mt-5 rounded-xl border border-dashed border-[#dce5d8] px-4 py-6 text-center text-sm text-moss">Todavía no tienes tareas pendientes.</div></section>
+      <section className="panel overflow-hidden"><div className="bg-moss p-5 text-white sm:p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-bold tracking-[.18em] text-sage">STOCK DE ALIMENTO</p><h3 className="mt-2 font-display text-3xl">Sin registros</h3></div><Leaf size={30} strokeWidth={1.5} /></div><p className="mt-5 text-sm text-sage">Agrega tu primer alimento para controlar existencias y alertas.</p></div><div className="p-5"><button onClick={() => onNavigate('finanzas')} className="text-sm font-semibold text-coral">Ir a alimentación y gastos</button></div></section>
     </div>
-    <div className="mt-5 grid gap-5 sm:grid-cols-2"><MiniCard icon={CircleDollarSign} title="Gastos de agosto" value="$ 186.400" meta="12 movimientos" /><MiniCard icon={CalendarCheck} title="Actividad reciente" value="6 registros" meta="En los últimos 7 días" /></div>
+    <div className="mt-5 grid gap-5 sm:grid-cols-2"><MiniCard icon={CircleDollarSign} title="Gastos del mes" value="$ 0" meta="Sin movimientos" /><MiniCard icon={CalendarCheck} title="Actividad reciente" value="0 registros" meta="Empieza agregando datos" /></div>
   </section>
 }
 
