@@ -1,0 +1,10 @@
+{
+  "name": "Aviarii - Gestión de aviario",
+  "short_name": "Aviarii",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7f2",
+  "theme_color": "#506b52",
+  "description": "Gestiona aves, reproducción, stock y tareas desde tu celular.",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

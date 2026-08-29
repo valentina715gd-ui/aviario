@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { font-family: 'DM Sans', sans-serif; color: #23332c; background: #f5f7f2; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+.page-grain { background-image: radial-gradient(#dbe5d8 0.7px, transparent 0.7px); background-size: 14px 14px; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.animate-rise { animation: rise .5s ease both; }
+.delay-1 { animation-delay: .08s; } .delay-2 { animation-delay: .16s; } .delay-3 { animation-delay: .24s; }
+
+@layer components {
+	.eyebrow { @apply text-[11px] font-bold tracking-[.18em] text-moss; }
+	.primary-button { @apply inline-flex items-center gap-2 rounded-xl bg-coral px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#d9674e]; }
+	.icon-button { @apply flex h-10 w-10 items-center justify-center rounded-xl border border-[#dce5d8] bg-white/70 text-moss transition hover:bg-sage; }
+	.brand-mark { @apply flex h-10 w-10 items-center justify-center rounded-xl bg-moss text-cream; }
+	.avatar { @apply flex h-10 w-10 items-center justify-center rounded-full bg-[#e5b48f] text-sm font-bold text-ink; }
+	.panel { @apply rounded-2xl border border-[#dce5d8] bg-[#f8faf6]/90 shadow-[0_8px_30px_rgba(53,78,58,.04)]; }
+	.metric { @apply rounded-2xl border p-4 shadow-[0_8px_30px_rgba(53,78,58,.04)] sm:p-5; }
+	.metric-green { @apply border-[#c9ddc7] bg-[#e6f0e2]; }
+	.metric-peach { @apply border-[#ecd0bd] bg-[#fae9dd]; }
+	.metric-blue { @apply border-[#c9dede] bg-[#e4f0ef]; }
+	.metric-yellow { @apply border-[#ebdbb4] bg-[#f8f0d9]; }
+	.metric svg { @apply text-moss; }
+	.icon-tile { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sage text-moss; }
+	.big-icon { @apply flex h-14 w-14 items-center justify-center rounded-2xl; }
+	.big-icon-coral { @apply bg-[#fae9dd] text-coral; }
+	.big-icon-sage { @apply bg-sage text-moss; }
+	label { @apply block text-xs font-bold text-moss; }
+	label input, label select { @apply mt-2 w-full rounded-xl border border-[#dce5d8] bg-white px-3 py-3 text-sm font-medium text-ink outline-none transition focus:border-moss focus:ring-2 focus:ring-sage; }
+	.bg-coral { background-color: #e8785d; }
+	.bg-sage { background-color: #dce8d8; }
+	.bg-yellow { background-color: #e8bd5f; }
+}

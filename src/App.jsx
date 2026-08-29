@@ -1,0 +1,269 @@
+import { useEffect, useState } from 'react'
+import {
+  Bird, CalendarCheck, ChevronRight, CircleDollarSign, Download, Egg, HeartPulse, Home, Leaf,
+  Menu, MessageCircle, Plus, Search, Settings, Share2, ShoppingBasket, Sparkles, Users, X,
+} from 'lucide-react'
+import { supabase } from './lib/supabase'
+
+const initialBirds = [
+  { id: 1, name: 'Lima', ring: 'AR-024', species: 'Diamante mandarín', mutation: 'Pío clásico', sex: 'Hembra', carrier: 'Sí', recessiveGene: 'Bruno', color: '#e7b891' },
+  { id: 2, name: 'Coco', ring: 'AR-025', species: 'Diamante mandarín', mutation: 'Pío clásico', sex: 'Macho', carrier: 'Desconocido', recessiveGene: '', color: '#c7d7c0' },
+  { id: 3, name: 'Nube', ring: 'AR-031', species: 'Agapornis roseicollis', mutation: 'Verde ancestral', sex: 'Hembra', carrier: 'No', recessiveGene: '', color: '#b8cfd0' },
+]
+
+const navItems = [
+  { id: 'inicio', label: 'Inicio', icon: Home },
+  { id: 'aves', label: 'Aves', icon: Bird },
+  { id: 'reproduccion', label: 'Cría', icon: Egg },
+  { id: 'finanzas', label: 'Finanzas', icon: CircleDollarSign },
+  { id: 'tareas', label: 'Tareas', icon: CalendarCheck },
+]
+
+function App() {
+  const publicAviaryId = new URLSearchParams(window.location.search).get('aviario')
+  const [session, setSession] = useState(null)
+  const [authLoading, setAuthLoading] = useState(Boolean(supabase))
+  const [activePage, setActivePage] = useState('inicio')
+  const [birds, setBirds] = useState(initialBirds)
+  const [showBirdForm, setShowBirdForm] = useState(false)
+  const [toast, setToast] = useState('')
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [profile, setProfile] = useState({ name: 'Mi aviario', photo: '', whatsapp: '', publish: true })
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+
+  useEffect(() => {
+    if (!supabase) return
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setAuthLoading(false)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession))
+    return () => listener.subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!supabase || !session?.user) return
+    supabase.from('aves').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }).then(({ data }) => {
+      if (data?.length) setBirds(data.map((bird) => ({ ...bird, name: bird.nombre || bird.anillo_id, ring: bird.anillo_id, mutation: bird.mutacion, sex: bird.sexo, carrier: bird.portador_recesivo, recessiveGene: bird.gen_recesivo, enVenta: bird.en_venta, color: '#d9c4a8' })))
+    })
+  }, [session])
+
+  useEffect(() => {
+    if (!supabase || !session?.user) return
+    supabase.from('aviarios').select('*').eq('user_id', session.user.id).maybeSingle().then(({ data }) => {
+      if (data) setProfile({ id: data.id, name: data.nombre, photo: data.foto_url || '', whatsapp: data.whatsapp || '', publish: data.publicar_ventas })
+    })
+  }, [session])
+
+  useEffect(() => {
+    const handleInstall = (event) => {
+      event.preventDefault()
+      setInstallPrompt(event)
+    }
+    window.addEventListener('beforeinstallprompt', handleInstall)
+    return () => window.removeEventListener('beforeinstallprompt', handleInstall)
+  }, [])
+
+  if (publicAviaryId) return <PublicAviaryPage aviaryId={publicAviaryId} />
+
+  const installApp = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    await installPrompt.userChoice
+    setInstallPrompt(null)
+  }
+
+  if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-cream text-sm text-moss">Cargando tu aviario...</div>
+  if (supabase && !session) return <AuthScreen />
+
+  const navigate = (page) => setActivePage(page)
+  const showToast = (message) => {
+    setToast(message)
+    window.setTimeout(() => setToast(''), 2400)
+  }
+
+  const addBird = async (event) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const newBird = {
+      id: Date.now(), name: form.get('name'), ring: form.get('ring'), species: form.get('species'),
+      mutation: form.get('mutation') || 'Sin especificar', sex: form.get('sex'), carrier: form.get('carrier'), recessiveGene: form.get('recessiveGene'), enVenta: form.get('enVenta') === 'on', color: '#d9c4a8',
+    }
+    if (supabase && session?.user) {
+      const { data, error } = await supabase.from('aves').insert({ user_id: session.user.id, nombre: newBird.name, anillo_id: newBird.ring, especie: newBird.species, mutacion: newBird.mutation, sexo: newBird.sex, portador_recesivo: newBird.carrier, gen_recesivo: newBird.recessiveGene || null, en_venta: newBird.enVenta }).select().single()
+      if (error) { showToast(error.message); return }
+      setBirds((current) => [{ ...data, ...newBird }, ...current])
+    } else setBirds((current) => [newBird, ...current])
+    setShowBirdForm(false)
+    showToast('Ave registrada correctamente')
+  }
+
+  return (
+    <div className="min-h-screen bg-cream page-grain pb-24 lg:pb-0">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-[#dce5d8] bg-[#f8faf6] px-5 py-7 lg:flex">
+        <Brand />
+        <nav className="mt-12 space-y-1">
+          {navItems.map((item) => <NavButton key={item.id} item={item} active={activePage === item.id} onClick={() => navigate(item.id)} />)}
+        </nav>
+        <div className="mt-auto rounded-2xl bg-sage/60 p-4">
+          <Sparkles size={18} className="text-moss" />
+          <p className="mt-3 text-sm font-semibold">Tu aviario, en orden</p>
+          <p className="mt-1 text-xs leading-5 text-moss">Registra cada detalle sin soltar el ritmo del día.</p>
+        </div>
+        <button className="mt-5 flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-moss hover:bg-sage/50" onClick={() => setShowSettings(true)}><Settings size={17} /> Ajustes</button>
+        {session && <button className="mt-2 px-3 py-2 text-left text-xs font-semibold text-coral" onClick={() => supabase.auth.signOut()}>Cerrar sesión</button>}
+      </aside>
+
+      <main className="mx-auto max-w-6xl lg:ml-64">
+        <header className="flex items-center justify-between px-5 py-5 sm:px-8 lg:px-12 lg:py-8">
+          <div className="lg:hidden"><Brand compact /></div>
+          <div className="hidden lg:block"><p className="text-sm font-medium text-moss">Sábado, 29 de agosto de 2026</p><h1 className="mt-1 font-display text-3xl">Buenos días, Val</h1></div>
+          <div className="relative flex items-center gap-3">{installPrompt && <button aria-label="Instalar aplicación" title="Instalar aplicación" className="icon-button" onClick={installApp}><Download size={19} /></button>}<button aria-label="Buscar" className="icon-button" onClick={() => { setSearchOpen((current) => !current); setMobileMenuOpen(false) }}><Search size={19} /></button><button aria-label="Menú" className="icon-button lg:hidden" onClick={() => { setMobileMenuOpen((current) => !current); setSearchOpen(false) }}><Menu size={19} /></button><button aria-label="Perfil" className="avatar" title={session?.user.email || 'Modo demo'} onClick={() => setProfileOpen((current) => !current)}>{session?.user.email?.[0]?.toUpperCase() || 'V'}</button>{profileOpen && <ProfileMenu session={session} onSettings={() => { setShowSettings(true); setProfileOpen(false) }} onClose={() => supabase?.auth.signOut()} />}</div>
+        </header>
+        {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} onNavigate={(page) => { setActivePage(page); setSearchOpen(false) }} />}
+        {mobileMenuOpen && <MobileMenu activePage={activePage} onNavigate={(page) => { setActivePage(page); setMobileMenuOpen(false) }} />}
+        <div className="px-5 sm:px-8 lg:px-12"><PageContent activePage={activePage} birds={birds} onNavigate={navigate} onAdd={() => setShowBirdForm(true)} onToast={showToast} /></div>
+      </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-[#dce5d8] bg-[#f8faf6]/95 px-2 py-2 backdrop-blur lg:hidden">
+        {navItems.map((item) => <NavButton key={item.id} item={item} active={activePage === item.id} onClick={() => navigate(item.id)} mobile />)}
+      </nav>
+      {showBirdForm && <BirdForm onClose={() => setShowBirdForm(false)} onSubmit={addBird} />}
+      {showSettings && <SettingsForm profile={profile} onClose={() => setShowSettings(false)} onSave={async (nextProfile) => { let photoUrl = nextProfile.photo; if (supabase && session?.user && nextProfile.photoFile) { const path = `${session.user.id}/aviario-${Date.now()}`; const { error: uploadError } = await supabase.storage.from('fotos-aves').upload(path, nextProfile.photoFile, { upsert: true, contentType: nextProfile.photoFile.type }); if (uploadError) { showToast(uploadError.message); return } photoUrl = supabase.storage.from('fotos-aves').getPublicUrl(path).data.publicUrl } if (supabase && session?.user) { const { data, error } = await supabase.from('aviarios').upsert({ user_id: session.user.id, nombre: nextProfile.name, foto_url: photoUrl || null, whatsapp: nextProfile.whatsapp || null, publicar_ventas: nextProfile.publish }, { onConflict: 'user_id' }).select().single(); if (error) { showToast(error.message); return } setProfile({ ...nextProfile, photo: photoUrl, id: data.id }) } else setProfile({ ...nextProfile, photo: photoUrl }); setShowSettings(false); showToast('Perfil del aviario actualizado') }} />}
+      {toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white shadow-xl lg:bottom-8">{toast}</div>}
+    </div>
+  )
+}
+
+function GlobalSearch({ onClose, onNavigate }) { return <div className="mx-5 mb-5 flex items-center gap-3 rounded-xl border border-moss bg-white px-4 py-3 shadow-sm sm:mx-8 lg:mx-12"><Search size={18} className="text-moss" /><input autoFocus className="w-full bg-transparent text-sm outline-none" placeholder="Buscar aves, parejas, gastos..." onKeyDown={(event) => { if (event.key === 'Enter') onNavigate('aves'); if (event.key === 'Escape') onClose() }} /><button className="text-xs font-bold text-coral" onClick={onClose}>Cerrar</button></div> }
+function MobileMenu({ activePage, onNavigate }) { return <div className="fixed inset-x-0 top-[72px] z-30 border-b border-[#dce5d8] bg-[#f8faf6] p-4 shadow-lg lg:hidden"><div className="space-y-1">{navItems.map((item) => <NavButton key={item.id} item={item} active={activePage === item.id} onClick={() => onNavigate(item.id)} />)}</div></div> }
+function ProfileMenu({ session, onSettings, onClose }) { return <div className="absolute right-0 top-12 z-40 w-56 rounded-2xl border border-[#dce5d8] bg-[#f8faf6] p-3 shadow-xl"><p className="px-3 py-2 text-xs text-moss">{session?.user.email || 'Modo demo'}</p><button className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-moss hover:bg-sage" onClick={onSettings}>Personalizar aviario</button>{session && <button className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-coral hover:bg-[#fae9dd]" onClick={onClose}>Cerrar sesión</button>}</div> }
+
+function PublicAviaryPage({ aviaryId }) {
+  const [shared, setShared] = useState(false)
+  const [aviary, setAviary] = useState(null)
+  const [availableBirds, setAvailableBirds] = useState(initialBirds.filter((bird) => bird.name !== 'Nube'))
+  useEffect(() => {
+    if (!supabase) return
+    supabase.from('aviarios').select('*').eq('id', aviaryId).eq('publicar_ventas', true).single().then(async ({ data }) => {
+      if (!data) return
+      setAviary(data)
+      const { data: birds } = await supabase.from('aves').select('*').eq('user_id', data.user_id).eq('en_venta', true).eq('estado', 'activa')
+      if (birds) setAvailableBirds(birds.map((bird) => ({ ...bird, name: bird.nombre, ring: bird.anillo_id, species: bird.especie, mutation: bird.mutacion, color: '#d9c4a8' })))
+    })
+  }, [aviaryId])
+  const share = async () => {
+    if (navigator.share) await navigator.share({ title: 'Aves disponibles', url: window.location.href })
+    else { await navigator.clipboard?.writeText(window.location.href); setShared(true); window.setTimeout(() => setShared(false), 1800) }
+  }
+  return <main className="min-h-screen bg-cream page-grain px-5 py-8"><div className="mx-auto max-w-5xl"><div className="flex items-center justify-between"><Brand compact /><button className="icon-button" onClick={share} title="Compartir catálogo" aria-label="Compartir catálogo"><Share2 size={18} /></button></div><section className="mt-8 overflow-hidden rounded-3xl border border-[#dce5d8] bg-[#f8faf6] shadow-sm"><div className="flex h-44 items-center justify-center bg-sage" style={aviary?.foto_url ? { backgroundImage: `url(${aviary.foto_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>{!aviary?.foto_url && <Bird size={78} className="text-moss/40" />}</div><div className="p-6 sm:p-8"><p className="eyebrow">CATÁLOGO PÚBLICO · {aviary?.nombre || aviaryId}</p><h1 className="mt-2 font-display text-4xl">Aves disponibles</h1><p className="mt-2 text-sm text-moss">Consulta las aves publicadas por este aviario.</p><div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{availableBirds.map((bird) => <PublicBirdCard key={bird.id} bird={bird} whatsapp={aviary?.whatsapp} />)}</div></div></section>{shared && <p className="mt-4 text-center text-sm font-semibold text-moss">Enlace copiado.</p>}</div></main>
+}
+
+function PublicBirdCard({ bird, whatsapp }) { const message = encodeURIComponent(`Hola, me interesa el ave ${bird.name} (${bird.species}, anillo ${bird.ring}). ¿Sigue disponible?`) ; const phone = whatsapp?.replace(/\D/g, '') || '5490000000000'; return <article className="panel overflow-hidden"><div className="flex h-28 items-center justify-center" style={{ backgroundColor: bird.color }}><Bird size={52} className="text-ink/30" /></div><div className="p-4"><h2 className="font-display text-2xl">{bird.name}</h2><p className="mt-1 text-xs text-moss">{bird.species} · {bird.mutation}</p><a className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#25d366] px-3 py-3 text-sm font-bold text-white" href={`https://wa.me/${phone}?text=${message}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> Consultar por WhatsApp</a></div></article> }
+
+function AuthScreen() {
+  const [mode, setMode] = useState('login')
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setLoading(true)
+    setMessage('')
+    const form = new FormData(event.currentTarget)
+    const email = form.get('email')
+    const password = form.get('password')
+    const result = mode === 'login'
+      ? await supabase.auth.signInWithPassword({ email, password })
+      : await supabase.auth.signUp({ email, password })
+    setLoading(false)
+    if (result.error) setMessage(result.error.message)
+    else if (mode === 'signup') setMessage('Cuenta creada. Revisa tu correo para confirmar el acceso.')
+  }
+
+  return <main className="flex min-h-screen items-center justify-center bg-cream page-grain px-5 py-8"><section className="w-full max-w-md rounded-3xl border border-[#dce5d8] bg-[#f8faf6] p-6 shadow-[0_12px_40px_rgba(53,78,58,.08)] sm:p-8"><Brand /><p className="eyebrow mt-12">TU AVIARIO PRIVADO</p><h1 className="mt-2 font-display text-4xl">{mode === 'login' ? 'Bienvenido de nuevo' : 'Crear una cuenta'}</h1><p className="mt-3 text-sm leading-6 text-moss">Cada usuario tendrá sus propios registros de aves, crías, gastos y tareas.</p><form onSubmit={submit} className="mt-7"><label>Correo electrónico<input required type="email" name="email" autoComplete="email" placeholder="tu@correo.com" /></label><label className="mt-4">Contraseña<input required minLength="6" type="password" name="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="Mínimo 6 caracteres" /></label>{message && <p className="mt-4 rounded-xl bg-[#fae9dd] p-3 text-xs font-semibold text-coral">{message}</p>}<button disabled={loading} className="primary-button mt-6 w-full justify-center disabled:opacity-60">{loading ? 'Procesando...' : mode === 'login' ? 'Iniciar sesión' : 'Registrarme'}</button></form><button className="mt-5 w-full text-center text-sm font-semibold text-moss" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMessage('') }}>{mode === 'login' ? 'Crear una cuenta nueva' : 'Ya tengo una cuenta'}</button></section></main>
+}
+
+function SettingsForm({ profile, onClose, onSave }) {
+  const [preview, setPreview] = useState(profile.photo)
+  const submit = (event) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    onSave({ name: form.get('name'), photo: preview, photoFile: form.get('photoFile'), whatsapp: form.get('whatsapp'), publish: form.get('publish') === 'on' })
+  }
+  return <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/30 p-0 backdrop-blur-sm sm:items-center sm:p-5"><form onSubmit={submit} className="w-full max-w-lg rounded-t-3xl bg-[#f8faf6] p-6 shadow-2xl sm:rounded-3xl"><div className="flex items-center justify-between"><div><p className="eyebrow">PERSONALIZACIÓN</p><h2 className="mt-1 font-display text-3xl">Mi aviario</h2></div><button type="button" aria-label="Cerrar" onClick={onClose} className="icon-button"><X size={19} /></button></div><label className="mt-6">Nombre público<input name="name" defaultValue={profile.name} placeholder="Ej. Aviario Los Aromos" /></label><label className="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-moss/40 bg-sage/30 px-4 py-5 text-sm font-semibold text-moss">{preview ? <img src={preview} alt="Vista previa del aviario" className="h-16 w-16 rounded-xl object-cover" /> : <Bird size={20} />} Elegir foto del aviario<input name="photoFile" type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) setPreview(URL.createObjectURL(file)) }} /></label><label className="mt-4">WhatsApp de contacto<input name="whatsapp" defaultValue={profile.whatsapp} placeholder="56912345678" /></label><label className="mt-5 flex items-center gap-3 rounded-xl bg-sage/50 p-4 text-sm"><input type="checkbox" name="publish" defaultChecked={profile.publish} className="h-4 w-4 accent-moss" /> Permitir catálogo público de aves en venta</label><p className="mt-3 text-xs leading-5 text-moss">Comparte tu catálogo agregando <strong>?aviario=TU_ID</strong> al final de tu URL publicada.</p><button className="primary-button mt-6 w-full justify-center" type="submit">Guardar personalización</button></form></div>
+}
+
+function Brand({ compact = false }) {
+  return <div className="flex items-center gap-3"><div className="brand-mark"><Bird size={compact ? 19 : 23} /></div><span className={`font-display font-bold ${compact ? 'text-xl' : 'text-2xl'}`}>aviarii</span></div>
+}
+
+function NavButton({ item, active, onClick, mobile }) {
+  const Icon = item.icon
+  return <button onClick={onClick} className={`${mobile ? 'flex min-w-[58px] flex-col items-center gap-1 py-1 text-[10px]' : 'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm'} ${active ? 'bg-moss font-semibold text-white shadow-sm' : 'text-moss hover:bg-sage/60'}`}><Icon size={mobile ? 19 : 18} /><span>{item.label}</span></button>
+}
+
+function PageContent({ activePage, birds, onNavigate, onAdd, onToast }) {
+  if (activePage === 'aves') return <BirdsPage birds={birds} onAdd={onAdd} />
+  if (activePage === 'reproduccion') return <ReproductionPage birds={birds} onToast={onToast} />
+  if (activePage === 'finanzas') return <FinancePage onToast={onToast} />
+  if (activePage === 'tareas') return <TasksPage onToast={onToast} />
+  return <Dashboard onNavigate={onNavigate} />
+}
+
+function Dashboard({ onNavigate }) {
+  return <section className="animate-rise">
+    <div className="mb-8 lg:hidden"><p className="text-sm font-medium text-moss">Sábado, 29 de agosto de 2026</p><h1 className="mt-1 font-display text-3xl">Buenos días, Val</h1></div>
+    <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="eyebrow">RESUMEN DEL AVIARIO</p><h2 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">Todo en calma.</h2><p className="mt-3 max-w-md text-sm leading-6 text-moss">Aquí tienes lo importante para cuidar mejor cada día.</p></div><button className="primary-button self-start sm:self-auto" onClick={() => onNavigate('aves')}><Plus size={18} /> Registrar ave</button></div>
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <Metric icon={Bird} label="Aves registradas" value="24" detail="+3 este mes" tone="green" />
+      <Metric icon={Users} label="Parejas activas" value="8" detail="2 con puesta" tone="peach" />
+      <Metric icon={Egg} label="Huevos en curso" value="11" detail="Próximo: 02 sep" tone="blue" />
+      <Metric icon={Sparkles} label="Crías del año" value="17" detail="+4 en agosto" tone="yellow" />
+    </div>
+    <div className="mt-8 grid gap-5 lg:grid-cols-[1.3fr_.7fr]">
+      <section className="panel p-5 sm:p-6"><div className="flex items-center justify-between"><div><p className="eyebrow">PRÓXIMAS TAREAS</p><h3 className="mt-1 font-display text-2xl">Para hoy</h3></div><button onClick={() => onNavigate('tareas')} className="text-sm font-semibold text-coral">Ver todas</button></div><div className="mt-5 space-y-2"><TaskRow title="Revisar pareja Lima + Coco" meta="Hoy · Reproducción" color="coral" /><TaskRow title="Aplicar vitaminas" meta="Mañana · Nube" color="sage" /><TaskRow title="Comprar mijo y mixtura" meta="En 3 días · Stock bajo" color="yellow" /></div></section>
+      <section className="panel overflow-hidden"><div className="bg-moss p-5 text-white sm:p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-bold tracking-[.18em] text-sage">STOCK DE ALIMENTO</p><h3 className="mt-2 font-display text-3xl">Todo bien</h3></div><Leaf size={30} strokeWidth={1.5} /></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-white/20"><div className="h-full w-[72%] rounded-full bg-[#f0c66c]" /></div><p className="mt-2 text-xs text-sage">72% de tu stock ideal</p></div><div className="p-5"><div className="flex justify-between border-b border-[#e4ebe1] pb-3 text-sm"><span className="text-moss">Mijo</span><strong>4.2 kg</strong></div><div className="flex justify-between pt-3 text-sm"><span className="text-moss">Mixtura</span><strong>2.8 kg</strong></div></div></section>
+    </div>
+    <div className="mt-5 grid gap-5 sm:grid-cols-2"><MiniCard icon={CircleDollarSign} title="Gastos de agosto" value="$ 186.400" meta="12 movimientos" /><MiniCard icon={CalendarCheck} title="Actividad reciente" value="6 registros" meta="En los últimos 7 días" /></div>
+  </section>
+}
+
+function Metric({ icon: Icon, label, value, detail, tone }) { return <div className={`metric metric-${tone}`}><Icon size={19} /><p className="mt-5 text-xs font-medium text-moss">{label}</p><p className="mt-1 text-3xl font-bold tracking-tight">{value}</p><p className="mt-1 text-[11px] font-semibold text-moss">{detail}</p></div> }
+function TaskRow({ title, meta, color }) { return <div className="flex items-center gap-3 rounded-xl border border-[#e4ebe1] px-3 py-3"><span className={`h-2.5 w-2.5 shrink-0 rounded-full bg-${color}`} /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{title}</p><p className="mt-0.5 text-xs text-moss">{meta}</p></div><ChevronRight size={17} className="text-moss" /></div> }
+function MiniCard({ icon: Icon, title, value, meta }) { return <div className="panel flex items-center gap-4 p-5"><div className="icon-tile"><Icon size={20} /></div><div><p className="text-xs font-medium text-moss">{title}</p><p className="mt-1 text-xl font-bold">{value}</p><p className="text-xs text-moss">{meta}</p></div></div> }
+
+function BirdsPage({ birds, onAdd }) {
+  const [query, setQuery] = useState('')
+  const filteredBirds = birds.filter((bird) => `${bird.name} ${bird.ring} ${bird.species}`.toLowerCase().includes(query.toLowerCase()))
+  return <section className="animate-rise"><div className="mb-7 flex items-end justify-between gap-3"><div><p className="eyebrow">REGISTRO DE AVES</p><h2 className="mt-2 font-display text-4xl">Tus aves</h2><p className="mt-2 text-sm text-moss">{filteredBirds.length} de {birds.length} fichas activas.</p></div><button className="primary-button" onClick={onAdd}><Plus size={18} /><span className="hidden sm:inline">Nueva ave</span><span className="sm:hidden">Añadir</span></button></div><div className="mb-5 flex items-center gap-3 rounded-xl border border-[#dce5d8] bg-white/60 px-4 py-3 text-sm text-moss"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent outline-none placeholder:text-moss/60" placeholder="Buscar por nombre, anillo o especie..." /></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{filteredBirds.map((bird) => <BirdCard key={bird.id} bird={bird} />)}</div>{!filteredBirds.length && <div className="panel p-8 text-center text-sm text-moss">No encontramos aves con esa búsqueda.</div>}</section>
+}
+function BirdCard({ bird }) { return <article className="panel overflow-hidden"><div className="flex h-28 items-center justify-center" style={{ backgroundColor: bird.color }}><Bird size={54} className="text-ink/30" strokeWidth={1.2} /></div><div className="p-4"><div className="flex items-start justify-between"><div><h3 className="font-display text-2xl">{bird.name}</h3><p className="mt-1 text-xs text-moss">Anillo {bird.ring}</p></div><span className="rounded-full bg-sage px-2.5 py-1 text-[10px] font-bold text-moss">ACTIVA</span></div><div className="mt-4 grid grid-cols-2 gap-3 border-t border-[#e4ebe1] pt-3 text-xs"><div><p className="text-moss">Especie</p><p className="mt-1 font-semibold">{bird.species}</p></div><div><p className="text-moss">Sexo</p><p className="mt-1 font-semibold">{bird.sex}</p></div></div><div className="mt-3 rounded-xl bg-[#f8f0d9] px-3 py-2 text-xs"><span className="font-bold text-moss">Genética: </span>{bird.carrier === 'Sí' && bird.recessiveGene ? `Portadora de ${bird.recessiveGene}` : bird.carrier === 'No' ? 'No portadora conocida' : 'Portador por confirmar'}</div></div></article> }
+
+function ReproductionPage({ birds, onToast }) {
+  const [eggDate, setEggDate] = useState('')
+  const [incubationDays, setIncubationDays] = useState('14')
+  const birthDate = eggDate ? addDays(eggDate, Number(incubationDays)) : ''
+  const lima = birds.find((bird) => bird.name === 'Lima')
+  const coco = birds.find((bird) => bird.name === 'Coco')
+  const geneticWarning = lima?.carrier === 'Sí' && coco?.carrier === 'Sí' && lima.recessiveGene === coco.recessiveGene
+  return <section className="animate-rise"><p className="eyebrow">CICLO DEL AVIARIO</p><div className="mt-2 flex items-center gap-4"><div className="big-icon big-icon-coral"><Egg size={30} /></div><h2 className="font-display text-4xl">Reproducción</h2></div><div className="mt-7 grid gap-5 lg:grid-cols-2"><section className="panel p-5 sm:p-6"><p className="eyebrow">CALCULADOR DE ECLOSIÓN</p><h3 className="mt-2 font-display text-2xl">¿Cuándo podría nacer?</h3><p className="mt-2 text-sm leading-6 text-moss">Indica la fecha del primer huevo y los días de incubación de la especie.</p><label className="mt-5">Fecha del huevo<input type="date" value={eggDate} onChange={(event) => setEggDate(event.target.value)} /></label><label className="mt-4">Días de incubación<input type="number" min="1" max="60" value={incubationDays} onChange={(event) => setIncubationDays(event.target.value)} /></label>{birthDate && <div className="mt-5 rounded-xl bg-[#fae9dd] p-4"><p className="text-xs font-bold text-coral">FECHA ESTIMADA</p><p className="mt-1 font-display text-2xl">{formatDate(birthDate)}</p><p className="mt-1 text-xs text-moss">Es una estimación; revisa el huevo y la pareja diariamente.</p></div>}<button className="primary-button mt-5" onClick={() => onToast('Puesta lista para guardar en Supabase')}><Plus size={18} /> Guardar puesta</button></section><section className="panel p-5 sm:p-6"><p className="eyebrow">GUÍA RÁPIDA</p><h3 className="mt-2 font-display text-2xl">Cuidados durante la cría</h3><div className="mt-5 space-y-3"><Tip title="Agua limpia" text="Renueva el agua todos los días y limpia el bebedero." /><Tip title="Calma y observación" text="Evita mover la jaula y revisa sin molestar a la pareja." /><Tip title="Alimentación" text="Mantén alimento fresco y ofrece calcio según la especie." /><Tip title="Señales de alerta" text="Consulta un veterinario si hay apatía, sangrado o rechazo de la cría." /></div></section></div><section className="panel mt-5 p-5 sm:p-6"><p className="eyebrow">GENÉTICA DEL AVIARIO</p><h3 className="mt-2 font-display text-2xl">Ideas de parejas</h3><p className="mt-2 text-sm leading-6 text-moss">Sugerencias iniciales basadas en especie, mutación y portadores. Nunca cruces aves emparentadas.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><PairIdea title="Lima + Coco" text={`Lima: ${lima?.carrier || 'Desconocido'} portadora de ${lima?.recessiveGene || 'gen no indicado'}. Coco: ${coco?.carrier || 'Desconocido'}. Confirma el gen de Coco antes de planear.`} warning={geneticWarning} /><PairIdea title="Nube + otro Agapornis" text="Busca misma especie, sexo confirmado, historial familiar y registra sus genes recesivos." /></div></section></section>
+}
+
+function FinancePage({ onToast }) { return <section className="animate-rise"><p className="eyebrow">CONTROL ECONÓMICO</p><div className="mt-2 flex items-center gap-4"><div className="big-icon big-icon-sage"><CircleDollarSign size={30} /></div><h2 className="font-display text-4xl">Finanzas</h2></div><div className="mt-7 grid gap-5 sm:grid-cols-2"><FinanceCard title="Ingresos por ventas" value="$ 420.000" detail="3 aves vendidas este año" tone="green" /><FinanceCard title="Egresos del mes" value="$ 186.400" detail="12 movimientos en agosto" tone="peach" /></div><div className="panel mt-5 p-5 sm:p-6"><div className="flex items-center justify-between"><div><p className="eyebrow">MOVIMIENTOS</p><h3 className="mt-2 font-display text-2xl">Últimos registros</h3></div><button className="primary-button" onClick={() => onToast('Selector de movimiento próximamente')}><Plus size={18} /> Registrar</button></div><div className="mt-5 space-y-3"><Movement icon={CircleDollarSign} title="Venta de Agapornis roseicollis" meta="Ingreso · 24 ago" amount="+$ 180.000" positive /><Movement icon={ShoppingBasket} title="Compra de alimento" meta="Egreso · 22 ago" amount="-$ 64.500" /></div></div></section> }
+function FinanceCard({ title, value, detail, tone }) { return <div className={`metric metric-${tone}`}><CircleDollarSign size={19} /><p className="mt-5 text-xs font-medium text-moss">{title}</p><p className="mt-1 text-2xl font-bold">{value}</p><p className="mt-1 text-xs text-moss">{detail}</p></div> }
+function Movement({ icon: Icon, title, meta, amount, positive }) { return <div className="flex items-center gap-3 border-b border-[#e4ebe1] pb-3"><div className="icon-tile"><Icon size={18} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{title}</p><p className="text-xs text-moss">{meta}</p></div><strong className={positive ? 'text-moss' : 'text-coral'}>{amount}</strong></div> }
+function Tip({ title, text }) { return <div className="flex gap-3 rounded-xl bg-sage/50 p-3"><HeartPulse size={18} className="mt-0.5 shrink-0 text-moss" /><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-xs leading-5 text-moss">{text}</p></div></div> }
+function PairIdea({ title, text, warning }) { return <div className={`rounded-xl border p-4 ${warning ? 'border-coral bg-[#fae9dd]' : 'border-[#e4ebe1]'}`}><div className="flex items-center gap-2"><Users size={17} className="text-coral" /><p className="font-semibold">{title}</p></div><p className="mt-2 text-xs leading-5 text-moss">{text}</p>{warning && <p className="mt-3 text-xs font-bold text-coral">Revisar: ambos podrían portar el mismo gen.</p>}</div> }
+function addDays(date, days) { const result = new Date(`${date}T12:00:00`); result.setDate(result.getDate() + days); return result.toISOString().slice(0, 10) }
+function formatDate(date) { return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${date}T12:00:00`)) }
+
+function SimplePage({ title, eyebrow, icon: Icon, accent, text, action, onAction }) { return <section className="animate-rise"><p className="eyebrow">{eyebrow}</p><div className="mt-2 flex items-center gap-4"><div className={`big-icon big-icon-${accent}`}><Icon size={30} /></div><h2 className="font-display text-4xl">{title}</h2></div><div className="panel mt-8 flex min-h-64 flex-col items-center justify-center p-8 text-center"><div className="icon-tile"><Icon size={23} /></div><p className="mt-5 max-w-sm text-sm leading-6 text-moss">{text}</p><button className="primary-button mt-5" onClick={onAction}><Plus size={18} /> {action}</button></div></section> }
+function TasksPage({ onToast }) { return <section className="animate-rise"><p className="eyebrow">ORGANIZACIÓN</p><div className="flex items-end justify-between"><div><h2 className="mt-2 font-display text-4xl">Tareas</h2><p className="mt-2 text-sm text-moss">3 pendientes para cuidar el ritmo.</p></div><button className="primary-button" onClick={() => onToast('Nueva tarea próximamente')}><Plus size={18} /><span className="hidden sm:inline">Nueva tarea</span></button></div><div className="mt-7 space-y-3"><TaskRow title="Revisar pareja Lima + Coco" meta="Hoy · Alta prioridad" color="coral" /><TaskRow title="Aplicar vitaminas a Nube" meta="Mañana · Tratamiento" color="sage" /><TaskRow title="Comprar mijo y mixtura" meta="02 sep · Stock" color="yellow" /></div></section> }
+
+function BirdForm({ onClose, onSubmit }) { return <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/30 p-0 backdrop-blur-sm sm:items-center sm:p-5"><form onSubmit={onSubmit} className="w-full max-w-lg rounded-t-3xl bg-[#f8faf6] p-6 shadow-2xl sm:rounded-3xl"><div className="flex items-center justify-between"><div><p className="eyebrow">NUEVO REGISTRO</p><h2 className="mt-1 font-display text-3xl">Añadir un ave</h2></div><button type="button" aria-label="Cerrar" onClick={onClose} className="icon-button"><X size={19} /></button></div><div className="mt-6 grid gap-4 sm:grid-cols-2"><label>Nombre<input required name="name" placeholder="Ej. Lima" /></label><label>ID / anillo<input required name="ring" placeholder="Ej. AR-032" /></label><label className="sm:col-span-2">Especie<input required name="species" placeholder="Ej. Diamante mandarín" /></label><label>Mutación<input name="mutation" placeholder="Ej. Pío clásico" /></label><label>Sexo<select name="sex" defaultValue="Indeterminado"><option>Macho</option><option>Hembra</option><option>Indeterminado</option></select></label><label>¿Portador recesivo?<select name="carrier" defaultValue="Desconocido"><option>Sí</option><option>No</option><option>Desconocido</option></select></label><label>Gen recesivo<input name="recessiveGene" placeholder="Ej. Bruno, ino, opal" /></label></div><label className="mt-4 flex items-center gap-3 rounded-xl bg-[#f8f0d9] p-4 text-sm"><input type="checkbox" name="enVenta" className="h-4 w-4 accent-moss" /> Publicar esta ave en el catálogo de venta</label><label className="mt-4 flex cursor-pointer items-center justify-center rounded-2xl border border-dashed border-moss/40 bg-sage/30 px-4 py-5 text-sm font-semibold text-moss"><Bird size={19} className="mr-2" /> Añadir foto desde la cámara<input type="file" accept="image/*" capture="environment" className="hidden" /></label><button className="primary-button mt-6 w-full justify-center" type="submit">Guardar ave</button></form></div> }
+
+export default App
