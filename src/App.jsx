@@ -107,8 +107,10 @@ function App() {
       mutation: form.get('mutation') || 'Sin especificar', sex: form.get('sex'), carrier: form.get('carrier'), recessiveGene: form.get('recessiveGene'), enVenta: form.get('enVenta') === 'on', color: '#d9c4a8',
     }
     if (supabase && session?.user) {
-      const { data, error } = await supabase.from('aves').insert({ user_id: session.user.id, nombre: newBird.name, anillo_id: newBird.ring, especie: newBird.species, mutacion: newBird.mutation, sexo: newBird.sex, portador_recesivo: newBird.carrier, gen_recesivo: newBird.recessiveGene || null, en_venta: newBird.enVenta }).select().single()
-      if (error) { showToast(error.message); return }
+      const { data: authData, error: authError } = await supabase.auth.getUser()
+      if (authError || !authData.user) { showToast('Tu sesión caducó. Cierra sesión y vuelve a entrar.'); return }
+      const { data, error } = await supabase.from('aves').insert({ user_id: authData.user.id, nombre: newBird.name, anillo_id: newBird.ring, especie: newBird.species, mutacion: newBird.mutation, sexo: newBird.sex, portador_recesivo: newBird.carrier, gen_recesivo: newBird.recessiveGene || null, en_venta: newBird.enVenta }).select().single()
+      if (error) { showToast(error.message.includes('row-level security') ? 'Supabase no reconoce tu sesión para guardar. Cierra sesión, vuelve a entrar y prueba otra vez.' : error.message); return }
       setBirds((current) => [{ ...data, ...newBird }, ...current])
     } else setBirds((current) => [newBird, ...current])
     setShowBirdForm(false)
