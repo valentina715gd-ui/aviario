@@ -67,6 +67,7 @@ function App() {
     return () => window.removeEventListener('beforeinstallprompt', handleInstall)
   }, [])
 
+  if (!supabase) return <SetupRequired />
   if (publicAviaryId) return <PublicAviaryPage aviaryId={publicAviaryId} />
 
   const installApp = async () => {
@@ -136,6 +137,10 @@ function App() {
       {toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white shadow-xl lg:bottom-8">{toast}</div>}
     </div>
   )
+}
+
+function SetupRequired() {
+  return <main className="flex min-h-screen items-center justify-center bg-cream page-grain px-5 py-8"><section className="w-full max-w-lg rounded-3xl border border-[#dce5d8] bg-[#f8faf6] p-6 shadow-[0_12px_40px_rgba(53,78,58,.08)] sm:p-8"><Brand /><p className="eyebrow mt-12">CONFIGURACIÓN PENDIENTE</p><h1 className="mt-2 font-display text-4xl">Conecta tu aviario</h1><p className="mt-3 text-sm leading-6 text-moss">Esta versión ya no usa datos de demostración. Configura Supabase en Vercel para comenzar con una cuenta y guardar tus datos.</p><div className="mt-6 rounded-2xl bg-sage/60 p-4 text-sm leading-6"><p className="font-bold">En Vercel agrega estas variables:</p><p className="mt-2 font-mono text-xs">VITE_SUPABASE_URL</p><p className="font-mono text-xs">VITE_SUPABASE_ANON_KEY</p><p className="mt-3 text-xs text-moss">Después pulsa Redeploy. Al recargar aparecerá Crear una cuenta / Iniciar sesión.</p></div><a className="primary-button mt-6 w-full justify-center" href="https://supabase.com" target="_blank" rel="noreferrer">Abrir Supabase</a></section></main>
 }
 
 function GlobalSearch({ onClose, onNavigate }) { return <div className="mx-5 mb-5 flex items-center gap-3 rounded-xl border border-moss bg-white px-4 py-3 shadow-sm sm:mx-8 lg:mx-12"><Search size={18} className="text-moss" /><input autoFocus className="w-full bg-transparent text-sm outline-none" placeholder="Buscar aves, parejas, gastos..." onKeyDown={(event) => { if (event.key === 'Enter') onNavigate('aves'); if (event.key === 'Escape') onClose() }} /><button className="text-xs font-bold text-coral" onClick={onClose}>Cerrar</button></div> }
