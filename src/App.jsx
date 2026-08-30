@@ -23,6 +23,7 @@ function App() {
   const [activePage, setActivePage] = useState('inicio')
   const [birds, setBirds] = useState(initialBirds)
   const [showBirdForm, setShowBirdForm] = useState(false)
+  const [editingBird, setEditingBird] = useState(null)
   const [toast, setToast] = useState('')
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -91,7 +92,7 @@ function App() {
   }
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-cream text-sm text-moss">Cargando tu aviario...</div>
-  if (supabase && !session) return <AuthScreen onAuthenticated={setSession} />
+  if (supabase && !session) return <AuthScreen onAuthenticated={(nextSession) => { sessionRef.current = nextSession; setSession(nextSession) }} />
 
   const navigate = (page) => setActivePage(page)
   const showToast = (message) => {
@@ -107,9 +108,13 @@ function App() {
       mutation: form.get('mutation') || 'Sin especificar', sex: form.get('sex'), carrier: form.get('carrier'), recessiveGene: form.get('recessiveGene'), enVenta: form.get('enVenta') === 'on', photoFile: form.get('photoFile'), color: '#d9c4a8',
     }
     if (supabase && session?.user) {
-      const userId = session.user.id
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !sessionData.session?.user) { showToast('No se pudo confirmar tu acceso. Cierra sesión y vuelve a entrar.'); return }
+      const userId = sessionData.session.user.id
       if (!userId) { showToast('No se encontró tu usuario. Cierra sesión y vuelve a entrar.'); return }
-      const { data, error } = await supabase.rpc('crear_ave', { p_nombre: newBird.name, p_anillo_id: newBird.ring, p_especie: newBird.species, p_mutacion: newBird.mutation, p_sexo: newBird.sex, p_portador_recesivo: newBird.carrier, p_gen_recesivo: newBird.recessiveGene || null, p_en_venta: newBird.enVenta })
+      const { data, error } = editingBird
+        ? await supabase.from('aves').update({ nombre: newBird.name, anillo_id: newBird.ring, especie: newBird.species, mutacion: newBird.mutation, sexo: newBird.sex, portador_recesivo: newBird.carrier, gen_recesivo: newBird.recessiveGene || null, en_venta: newBird.enVenta }).eq('id', editingBird.id).eq('user_id', userId).select().single()
+        : await supabase.rpc('crear_ave', { p_nombre: newBird.name, p_anillo_id: newBird.ring, p_especie: newBird.species, p_mutacion: newBird.mutation, p_sexo: newBird.sex, p_portador_recesivo: newBird.carrier, p_gen_recesivo: newBird.recessiveGene || null, p_en_venta: newBird.enVenta })
       if (error) { showToast(error.message.includes('function') ? 'Falta activar la función de guardado. Ejecuta repair-aves-definitivo.sql en Supabase.' : error.message.includes('JWT') ? 'Tu acceso expiró. Cierra sesión y vuelve a entrar.' : `No se pudo guardar el ave: ${error.message}`); return }
       let photoUrl = null
       if (newBird.photoFile) {
@@ -118,10 +123,11 @@ function App() {
         if (uploadError) showToast(uploadError.message.includes('Bucket not found') ? 'Ave guardada. Falta crear fotos-aves para subir la imagen.' : `Ave guardada, pero no se pudo subir la foto: ${uploadError.message}`)
         else { photoUrl = supabase.storage.from('fotos-aves').getPublicUrl(path).data.publicUrl; await supabase.from('aves').update({ foto_url: photoUrl }).eq('id', data.id).eq('user_id', userId) }
       }
-      setBirds((current) => [{ ...data, ...newBird, foto_url: photoUrl }, ...current])
+      setBirds((current) => editingBird ? current.map((bird) => bird.id === editingBird.id ? { ...bird, ...data, ...newBird, foto_url: photoUrl || bird.foto_url } : bird) : [{ ...data, ...newBird, foto_url: photoUrl }, ...current])
     } else setBirds((current) => [newBird, ...current])
     setShowBirdForm(false)
-    showToast('Ave registrada correctamente')
+    setEditingBird(null)
+    showToast(editingBird ? 'Ave actualizada correctamente' : 'Ave registrada correctamente')
   }
 
   return (
@@ -148,13 +154,13 @@ function App() {
         </header>
         {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} onNavigate={(page) => { setActivePage(page); setSearchOpen(false) }} />}
         {mobileMenuOpen && <MobileMenu activePage={activePage} onNavigate={(page) => { setActivePage(page); setMobileMenuOpen(false) }} />}
-        <div className="px-5 sm:px-8 lg:px-12"><PageContent activePage={activePage} birds={birds} onNavigate={navigate} onAdd={() => setShowBirdForm(true)} onToast={showToast} /></div>
+        <div className="px-5 sm:px-8 lg:px-12"><PageContent activePage={activePage} birds={birds} onNavigate={navigate} onAdd={() => { setEditingBird(null); setShowBirdForm(true) }} onEdit={(bird) => { setEditingBird(bird); setShowBirdForm(true) }} onToast={showToast} /></div>
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-[#dce5d8] bg-[#f8faf6]/95 px-2 py-2 backdrop-blur lg:hidden">
         {navItems.map((item) => <NavButton key={item.id} item={item} active={activePage === item.id} onClick={() => navigate(item.id)} mobile />)}
       </nav>
-      {showBirdForm && <BirdForm onClose={() => setShowBirdForm(false)} onSubmit={addBird} />}
+      {showBirdForm && <BirdForm bird={editingBird} onClose={() => { setShowBirdForm(false); setEditingBird(null) }} onSubmit={addBird} />}
       {showSettings && <SettingsForm profile={profile} onClose={() => setShowSettings(false)} onSave={async (nextProfile) => { let photoUrl = nextProfile.photo; if (supabase && session?.user && nextProfile.photoFile) { const path = `${session.user.id}/aviario-${Date.now()}`; const { error: uploadError } = await supabase.storage.from('fotos-aves').upload(path, nextProfile.photoFile, { upsert: true, contentType: nextProfile.photoFile.type }); if (uploadError) { showToast(uploadError.message.includes('Bucket not found') ? 'No se pudo guardar la foto. Ejecuta repair-storage.sql.' : uploadError.message); return } photoUrl = supabase.storage.from('fotos-aves').getPublicUrl(path).data.publicUrl } if (supabase && session?.user) { const { data, error } = await supabase.rpc('guardar_aviario', { p_nombre: nextProfile.name, p_foto_url: photoUrl || null, p_whatsapp: nextProfile.whatsapp || null, p_publicar_ventas: nextProfile.publish }); if (error) { showToast(error.message.includes('function') ? 'Falta activar el guardado del aviario. Ejecuta repair-aviario-definitivo.sql.' : error.message); return } setProfile({ ...nextProfile, photo: photoUrl, id: data.id }) } else setProfile({ ...nextProfile, photo: photoUrl }); setShowSettings(false); showToast('Cambios guardados correctamente') }} />}
       {toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white shadow-xl lg:bottom-8">{toast}</div>}
     </div>
@@ -237,8 +243,8 @@ function NavButton({ item, active, onClick, mobile }) {
   return <button onClick={onClick} className={`${mobile ? 'flex min-w-[58px] flex-col items-center gap-1 py-1 text-[10px]' : 'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm'} ${active ? 'bg-moss font-semibold text-white shadow-sm' : 'text-moss hover:bg-sage/60'}`}><Icon size={mobile ? 19 : 18} /><span>{item.label}</span></button>
 }
 
-function PageContent({ activePage, birds, onNavigate, onAdd, onToast }) {
-  if (activePage === 'aves') return <BirdsPage birds={birds} onAdd={onAdd} />
+function PageContent({ activePage, birds, onNavigate, onAdd, onEdit, onToast }) {
+  if (activePage === 'aves') return <BirdsPage birds={birds} onAdd={onAdd} onEdit={onEdit} />
   if (activePage === 'reproduccion') return <ReproductionPage birds={birds} onToast={onToast} />
   if (activePage === 'finanzas') return <EmptyFinancePage onToast={onToast} />
   if (activePage === 'tareas') return <EmptyTasksPage onToast={onToast} />
@@ -267,12 +273,12 @@ function Metric({ icon: Icon, label, value, detail, tone }) { return <div classN
 function TaskRow({ title, meta, color }) { return <div className="flex items-center gap-3 rounded-xl border border-[#e4ebe1] px-3 py-3"><span className={`h-2.5 w-2.5 shrink-0 rounded-full bg-${color}`} /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{title}</p><p className="mt-0.5 text-xs text-moss">{meta}</p></div><ChevronRight size={17} className="text-moss" /></div> }
 function MiniCard({ icon: Icon, title, value, meta }) { return <div className="panel flex items-center gap-4 p-5"><div className="icon-tile"><Icon size={20} /></div><div><p className="text-xs font-medium text-moss">{title}</p><p className="mt-1 text-xl font-bold">{value}</p><p className="text-xs text-moss">{meta}</p></div></div> }
 
-function BirdsPage({ birds, onAdd }) {
+function BirdsPage({ birds, onAdd, onEdit }) {
   const [query, setQuery] = useState('')
   const filteredBirds = birds.filter((bird) => `${bird.name} ${bird.ring} ${bird.species}`.toLowerCase().includes(query.toLowerCase()))
-  return <section className="animate-rise"><div className="mb-7 flex items-end justify-between gap-3"><div><p className="eyebrow">REGISTRO DE AVES</p><h2 className="mt-2 font-display text-4xl">Tus aves</h2><p className="mt-2 text-sm text-moss">{filteredBirds.length} de {birds.length} fichas activas.</p></div><button className="primary-button" onClick={onAdd}><Plus size={18} /><span className="hidden sm:inline">Nueva ave</span><span className="sm:hidden">Añadir</span></button></div><div className="mb-5 flex items-center gap-3 rounded-xl border border-[#dce5d8] bg-white/60 px-4 py-3 text-sm text-moss"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent outline-none placeholder:text-moss/60" placeholder="Buscar por nombre, anillo o especie..." /></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{filteredBirds.map((bird) => <BirdCard key={bird.id} bird={bird} />)}</div>{!filteredBirds.length && <div className="panel p-8 text-center text-sm text-moss">No encontramos aves con esa búsqueda.</div>}</section>
+  return <section className="animate-rise"><div className="mb-7 flex items-end justify-between gap-3"><div><p className="eyebrow">REGISTRO DE AVES</p><h2 className="mt-2 font-display text-4xl">Tus aves</h2><p className="mt-2 text-sm text-moss">{filteredBirds.length} de {birds.length} fichas activas.</p></div><button className="primary-button" onClick={onAdd}><Plus size={18} /><span className="hidden sm:inline">Nueva ave</span><span className="sm:hidden">Añadir</span></button></div><div className="mb-5 flex items-center gap-3 rounded-xl border border-[#dce5d8] bg-white/60 px-4 py-3 text-sm text-moss"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent outline-none placeholder:text-moss/60" placeholder="Buscar por nombre, anillo o especie..." /></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{filteredBirds.map((bird) => <BirdCard key={bird.id} bird={bird} onEdit={() => onEdit(bird)} />)}</div>{!filteredBirds.length && <div className="panel p-8 text-center text-sm text-moss">No encontramos aves con esa búsqueda.</div>}</section>
 }
-function BirdCard({ bird }) { return <article className="panel overflow-hidden"><div className="flex h-28 items-center justify-center bg-sage" style={bird.foto_url || bird.photo ? { backgroundImage: `url(${bird.foto_url || bird.photo})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>{!(bird.foto_url || bird.photo) && <Bird size={54} className="text-ink/30" strokeWidth={1.2} />}</div><div className="p-4"><div className="flex items-start justify-between"><div><h3 className="font-display text-2xl">{bird.name}</h3><p className="mt-1 text-xs text-moss">Anillo {bird.ring}</p></div><span className="rounded-full bg-sage px-2.5 py-1 text-[10px] font-bold text-moss">ACTIVA</span></div><div className="mt-4 grid grid-cols-2 gap-3 border-t border-[#e4ebe1] pt-3 text-xs"><div><p className="text-moss">Especie</p><p className="mt-1 font-semibold">{bird.species}</p></div><div><p className="text-moss">Sexo</p><p className="mt-1 font-semibold">{bird.sex}</p></div></div><div className="mt-3 rounded-xl bg-[#f8f0d9] px-3 py-2 text-xs"><span className="font-bold text-moss">Genética: </span>{bird.carrier === 'Sí' && bird.recessiveGene ? `Portadora de ${bird.recessiveGene}` : bird.carrier === 'No' ? 'No portadora conocida' : 'Portador por confirmar'}</div></div></article> }
+function BirdCard({ bird, onEdit }) { return <article className="panel overflow-hidden"><div className="flex h-28 items-center justify-center bg-sage" style={bird.foto_url || bird.photo ? { backgroundImage: `url(${bird.foto_url || bird.photo})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>{!(bird.foto_url || bird.photo) && <Bird size={54} className="text-ink/30" strokeWidth={1.2} />}</div><div className="p-4"><div className="flex items-start justify-between"><div><h3 className="font-display text-2xl">{bird.name}</h3><p className="mt-1 text-xs text-moss">Anillo {bird.ring}</p></div><button className="text-xs font-bold text-coral" onClick={onEdit}>Editar</button></div><div className="mt-4 grid grid-cols-2 gap-3 border-t border-[#e4ebe1] pt-3 text-xs"><div><p className="text-moss">Especie</p><p className="mt-1 font-semibold">{bird.species}</p></div><div><p className="text-moss">Sexo</p><p className="mt-1 font-semibold">{bird.sex}</p></div></div><div className="mt-3 rounded-xl bg-[#f8f0d9] px-3 py-2 text-xs"><span className="font-bold text-moss">Genética: </span>{bird.carrier === 'Sí' && bird.recessiveGene ? `Portadora de ${bird.recessiveGene}` : bird.carrier === 'No' ? 'No portadora conocida' : 'Portador por confirmar'}</div></div></article> }
 
 function ReproductionPage({ birds, onToast }) {
   const [eggDate, setEggDate] = useState('')

@@ -35,6 +35,12 @@ alter table public.aves add column if not exists gen_recesivo text;
 
 La interfaz incluye datos de demostracion para revisar el flujo antes de conectar la base de datos. El archivo `public/manifest.webmanifest` y `public/sw.js` habilitan la instalacion como PWA.
 
+## Estado actual del CRUD
+
+- Aves: crear y consultar estan conectados a Supabase; editar esta preparado en el codigo, pero requiere completar la carga de valores del formulario; eliminar aun no esta conectado.
+- Personalizacion del aviario: guardar nombre, foto, WhatsApp y publicacion esta conectado mediante RPC.
+- Cria, finanzas y tareas: actualmente son vistas iniciales; sus botones aun no guardan registros en Supabase.
+
 ## Finanzas y reproduccion
 
 - `Finanzas` separa ingresos por venta de aves y egresos del aviario.
